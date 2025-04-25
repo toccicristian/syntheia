@@ -18,12 +18,16 @@ class CustomLogicAdapter(LogicAdapter):
         # Determinar si este adaptador puede procesar la declaración
         return True
 
-    def process(self, statement, additional_response_selection_parameters):
+    def process(self, statement, additional_response_selection_parameters=None):
         try:
-            response = self.model.predict([statement.text])[0]
-            return Statement(text=response)
+            response_text = self.model.predict([statement.text])[0]
+            response_statement = Statement(text=response_text)
+            return response_statement
+
         except Exception as e:
-            return "Lo siento, no pude procesar tu solicitud."
+            return Statement(text="Lo siento, no pude procesar tu solicitud.")  # Devuelve un Statement en caso de error
 
 
 ######################################### FIN DE INTEGRACION CON EL CHATBOT
+
+

@@ -1,5 +1,24 @@
-apodo = input("Tu apodo: ")
-botname = input("Nombre del bot: ")
+# BIBLIOTECA DE RECUERDOS
+
+import modelos.recuerdo_modelo as recmodel
+import repositorios.recuerdos as recrepo
+
+
+if not recrepo.busca_recuerdo_por_nombre("nombreUsuario"):
+    recuerdo_apodo=recmodel.Recuerdo(nombre="nombreUsuario", contenido=[input("Quien sos?\n>"),])
+    recrepo.agrega_recuerdo(recuerdo_apodo)
+
+recuerdo_apodo=recrepo.busca_recuerdo_por_nombre("nombreUsuario")
+apodo = recuerdo_apodo.contenido[0]
+
+
+if not recrepo.busca_recuerdo_por_nombre("quiensoy"):
+    recuerdo_botname=recmodel.Recuerdo(nombre="quiensoy", contenido=[input(f"No recuerdo mi nombre... cuál es?\n{apodo}>"),])
+    recrepo.agrega_recuerdo(recuerdo_botname)
+
+recuerdo_botname=recrepo.busca_recuerdo_por_nombre("quiensoy")
+botname = recuerdo_botname.contenido[0]
+
 
 
 # PARA INTEGRACION CON CHATBOT:
@@ -21,14 +40,10 @@ from sklearn.metrics import accuracy_score
 
 ########################################## MODELO DE CLASIFICACION DE TEXTO:
 
-# Ejemplo de datos de entrenamiento
-data = [
-    ("Hola!", f"Hola, {apodo}"),
-    ("Cómo te llamas?", f"Mi nombre es {botname}"),
-    ("Cómo estás?", "Estoy muy bien."),
-    ("Chau!", f"Nos vemos, {apodo}!"),
-    ("Gracias!", "De nada!")
-]
+
+##################### Datos de entrenamiento
+from datasets.trainingdata import data
+############################################
 
 # Separar las preguntas y respuestas
 questions = [pair[0] for pair in data]
@@ -37,18 +52,31 @@ answers = [pair[1] for pair in data]
 # Crear un pipeline de clasificación
 pipeline = Pipeline([
     ('tfidf', TfidfVectorizer()),
-    ('clf', LogisticRegression())
+    ('clf', LogisticRegression(max_iter=200))
 ])
 
 # Dividir los datos en conjuntos de entrenamiento y prueba
 X_train, X_test, y_train, y_test = train_test_split(questions, answers, test_size=0.2, random_state=42)
+
+
+print(f"Datos de entrenamiento: {X_train}")
+print(f"Datos de prueba: {X_test}")
+
 
 # Entrenar el modelo
 pipeline.fit(X_train, y_train)
 
 # Evaluar el modelo
 y_pred = pipeline.predict(X_test)
+
+print(f'Predicciones: {y_pred}')
+print(f'Verdaderos: {y_test}')
+
 print(f'Accuracy: {accuracy_score(y_test, y_pred)}')
+
+
+
+
 
 ########################################## FIN DE MODELO DE CLASIFICACION DE TEXTO
 
