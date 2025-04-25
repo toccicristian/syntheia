@@ -1,5 +1,37 @@
 import sys
-from os.path import normpath, expanduser
+from os.path import normpath, expanduser, isfile
+import os
+import logging
+
+
+ayuda=f"""
+    ai1 es un chatbot basico que hace uso de chatterbot.
+    SINTAXIS:
+    {sys.argv[0]} [opcion]
+
+
+"""
+
+CUSTOMDATASET=False
+
+logging.getLogger('chatterbot').setLevel(logging.ERROR)
+logging.basicConfig(level=logging.ERROR)
+
+if len(sys.argv)>1:
+    for arg in sys.argv[1:]:
+        if arg == "--logging=info":
+            logging.basicConfig(level=logging.info)
+        if len([a for a in ['--help','--ayuda','-h'] if a == arg]):
+            print(f"{ayuda}")
+            sys.exit()
+        if arg.startswith("--dataset="):
+            if not isfile(normpath(expanduser(arg.lstrip("--dataset=")))):
+                print("No se ha encontrado la ruta al dataset expresado en los argumentos.")
+                sys.exit()
+            if not normpath(expanduser(arg.lstrip("--dataset="))).endswith(".csv") and not normpath(expanduser(arg.lstrip("--dataset="))).endswith(".json"):
+                print("El dataset proveido debe ser .csv o .json")
+
+            CUSTOMDATASET=arg.lstrip("--dataset=")
 
 
 ############################################################
@@ -33,6 +65,8 @@ botname = recuerdo_botname.contenido[0]
 #
 #INTENTS_FILE="datasets/university_dataset.json"
 INTENTS_FILE="datasets/Conversation.csv"
+if CUSTOMDATASET:
+    INTENTS_FILE=CUSTOMDATASET
 #
 #
 #
@@ -68,8 +102,8 @@ else:
     for index, row in data.iterrows():
         question = row['question']
         answer = row['answer']
-        print(f"[{i}/{len(data)}]",end="",flush=True)
         trainer.train([question, answer]) # Entrenar con la pregunta y la respuesta
+        print(f"[{i}/{len(data)}]")
         i=i+1
 
 
