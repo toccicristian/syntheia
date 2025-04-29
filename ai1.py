@@ -2,6 +2,8 @@ import sys
 from os.path import normpath, expanduser, isfile
 import os
 import logging
+import herramientas.caracteres as hcaract
+
 
 
 ayuda=f"""
@@ -34,29 +36,66 @@ if len(sys.argv)>1:
             CUSTOMDATASET=arg.lstrip("--dataset=")
 
 
-############################################################
-# BIBLIOTECA DE RECUERDOS
+###########################################################################################################
+# MODULOS PARA BIBLIOTECA DE RECUERDOS
 #
 import modelos.recuerdo_modelo as recmodel
 import repositorios.recuerdos as recrepo
+import herramientas.encriptacion as hencript
+###########################################################################################################
+
+
+
+###########################################################################################################
 #
-if not recrepo.busca_recuerdo_por_nombre("nombreUsuario"):
-    recuerdo_apodo=recmodel.Recuerdo(nombre="nombreUsuario", contenido=[input("Quien sos?\n>"),])
-    recrepo.agrega_recuerdo(recuerdo_apodo)
+#                                               LOGIN
 #
-#
-recuerdo_apodo=recrepo.busca_recuerdo_por_nombre("nombreUsuario")
-apodo = recuerdo_apodo.contenido[0]
-#
-#
-if not recrepo.busca_recuerdo_por_nombre("quiensoy"):
-    recuerdo_botname=recmodel.Recuerdo(nombre="quiensoy", contenido=[input(f"No recuerdo mi nombre... cuál es?\n{apodo}>"),])
+import getpass
+
+login_username=input("Usuario   :")
+login_password=hencript.hashear(getpass.getpass("Clave     :"))
+
+LOGIN_VALIDO=False
+while not LOGIN_VALIDO:
+    recuerdo = recrepo.busca_recuerdo_por_nombre_y_caracteristicas(login_username,["persona"])
+    if not recuerdo:        #guardo el usuario y clave en la bd
+        recuerdo = recmodel.Recuerdo (nombre = login_username,
+                             caracteristicas=["persona"],
+                             contenido={"login_password":login_password, "greeting":f"Hola, {login_username}! es un gusto conocerte! ^_^"})
+        recrepo.agrega_recuerdo(recuerdo)
+
+
+    persona = recrepo.busca_recuerdo_por_nombre_y_caracteristicas(login_username,["persona"])
+    password_bd = persona.busca_contenido("login_password")
+
+    if str(login_password) == str(password_bd):
+        LOGIN_VALIDO=True
+
+    if not LOGIN_VALIDO:
+        print(f"estas seguro que sos {login_username}? pasame tus datos nuevamente... tal vez te confundiste la clave?")
+        login_username=input("Usuario   :")
+        login_password=hencript.hashear(getpass.getpass("Clave     :"))
+
+
+
+print(persona.busca_contenido("greeting"))
+
+if not recrepo.busca_recuerdo_por_nombre_y_caracteristicas("yo",["ai"]):
+    recuerdo_botname = recmodel.Recuerdo(nombre = "yo",
+                                         caracteristicas=["ai"],
+                                         contenido={"nombre":input(f"No recuerdo mi nombre... cuál es?\n{login_username}>")})
     recrepo.agrega_recuerdo(recuerdo_botname)
-#
-recuerdo_botname=recrepo.busca_recuerdo_por_nombre("quiensoy")
-botname = recuerdo_botname.contenido[0]
-#
-############################################################
+
+
+persona.actualiza_contenido("greeting", f"Hola, {login_username}! qué bueno volver a verte! ^_^")
+recrepo.actualiza_recuerdo(persona)
+
+recuerdo_botname=recrepo.busca_recuerdo_por_nombre_y_caracteristicas("yo",["ai"])
+botname = recuerdo_botname.busca_contenido("nombre")
+
+
+
+###########################################################################################################
 
 
 
@@ -110,17 +149,17 @@ else:
 
 try:
     while True:
-        user_input = input(f"{apodo}>")
+        user_input = input(f"{login_username}>")
         if user_input.lower() in ["salir", "exit"]:
-            print("Bot: ¡Hasta luego!")
+            print("<Proceso terminado>")
             break
-        response = chatbot.get_response(user_input)
+        response = chatbot.get_response(hcaract.quita_acentos(user_input.lower()))
         if response.confidence < 0.6:
-            print("Bot: Sorry, i didn't get that. Could you rephrase?")
+            print(f"{botname}>Lo siento... no comprendo lo que dijiste...")
             if INTENTS_FILE.lower().endswith(".csv"):
-                user_feedback = input("Would you like me to learn the answer to this question? (yes/no): ")
-                if user_feedback.lower() == 'yes':
-                    new_answer = input("which would be the right answer? ")
+                user_feedback = input("Te gustaría enseñarme una respuesta adecuada a esa pregunta? (si/no): ")
+                if user_feedback.lower() == 'si':
+                    new_answer = input("cual sería una respuesta adecuada? ")
                     new_data = pd.DataFrame([[user_input, new_answer]], columns=['question', 'answer'])
                     data = pd.concat([data, new_data], ignore_index=True)
                     data.to_csv(INTENTS_FILE, index=False)
