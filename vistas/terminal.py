@@ -1,8 +1,14 @@
+import constantes.mensajes
 import controladores.selector
 import sys
 
+
+
+
+
 def prompt(persona, rbot, chatbot, CUSTOMDATASET, INTENTS_DIR, data, trainer):
     try:
+        print(f"{constantes.mensajes.AYUDA}")
         respuesta=True
         while respuesta:
             entrada = input(f"{persona.nombre}>")

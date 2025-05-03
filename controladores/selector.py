@@ -2,12 +2,18 @@ import herramientas.caracteres as hcaract
 import pandas as pd
 import os
 import modelos.recuerdo_modelo as recuerdo
+import herramientas.datos
+import constantes.mensajes
 
 
 def selector(entrada, rec_persona, rec_chatbot, chatbot, CUSTOMDATASET, INTENTS_DIR, data, trainer):
-    if entrada.lower() in ["salir", "exit"]:
+    if entrada.lower() in ["/salir", "/exit"]:
         print("<Proceso terminado>")
         return False
+
+    if entrada.lower() in ["/ayuda","/help"]:
+        return constantes.mensajes.AYUDA
+
     respuesta = chatbot.get_response(hcaract.quita_acentos(entrada.lower()))
     if respuesta.confidence < 0.6:
         print(f"{rec_chatbot.busca_contenido('nombre')}>Lo siento... no comprendo lo que dijiste...")

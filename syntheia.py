@@ -167,6 +167,9 @@ if CUSTOMDATASET:
             i=i+1
 
 else:
+    import datasets.funciones
+    datasets.funciones.entrena_funciones(trainer)
+
     INTENTS_FILES=persona.busca_contenido("user_intents_files_url")
     for INTENTS_FILE in INTENTS_FILES:
         if INTENTS_FILE.lower().endswith(".json"):
@@ -196,6 +199,5 @@ else:
 
 
 import vistas.terminal
-# TODO CREAR EL CONTROLADOR DE EJECUCION DE TAREAS (RESPONDER,BUSCAR DATOS LOCAL, ONLINE ETC...)
 vistas.terminal.prompt(persona, recuerdo_botname, chatbot, CUSTOMDATASET, INTENTS_DIR, data, trainer)
 
