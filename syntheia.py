@@ -4,7 +4,7 @@ import os
 import logging
 import herramientas.caracteres as hcaract
 
-
+import pandas as pd
 
 ayuda=f"""
     ai1 es un chatbot basico que hace uso de chatterbot.
@@ -152,7 +152,6 @@ if CUSTOMDATASET:
 
     else:
         if CUSTOMDATASET.lower().endswith(".csv"):
-            import pandas as pd
 
             if os.path.exists(CUSTOMDATASET):
                 data = pd.read_csv(CUSTOMDATASET)
@@ -168,6 +167,9 @@ if CUSTOMDATASET:
             i=i+1
 
 else:
+    import datasets.funciones
+    datasets.funciones.entrena_funciones(trainer)
+
     INTENTS_FILES=persona.busca_contenido("user_intents_files_url")
     for INTENTS_FILE in INTENTS_FILES:
         if INTENTS_FILE.lower().endswith(".json"):
@@ -196,34 +198,6 @@ else:
                 i=i+1
 
 
-
-try: # TODO SEPARAR LA VISTA, CREAR EL CONTROLADOR DE SELECCION Y EL DE EJECUCION DE TAREAS (RESPONDER,BUSCAR DATOS LOCAL, ONLINE ETC...)
-    while True:
-        user_input = input(f"{persona.nombre}>")
-        if user_input.lower() in ["salir", "exit"]:
-            print("<Proceso terminado>")
-            break
-        response = chatbot.get_response(hcaract.quita_acentos(user_input.lower()))
-        if response.confidence < 0.6:
-            print(f"{botname}>Lo siento... no comprendo lo que dijiste...")
-            INPUT_INTENTS_FILE=CUSTOMDATASET
-            if not INPUT_INTENTS_FILE:
-                INPUT_INTENTS_FILE=os.path.join(INTENTS_DIR,persona.nombre+".csv")
-
-            if INPUT_INTENTS_FILE.lower().endswith(".csv"):
-                user_feedback = input(f"{botname}>Te gustaría enseñarme una respuesta adecuada a esa pregunta?\n{persona.nombre}>")
-                if user_feedback.lower() in ['si','bueno','tal vez','capaz','ok','puede ser']:
-                    new_answer = input(f"{botname}>cuál sería una respuesta adecuada?\n{persona.nombre}>")
-                    new_data = pd.DataFrame([[user_input, new_answer]], columns=['question', 'answer'])
-                    data = pd.concat([data, new_data], ignore_index=True)
-                    data.to_csv(INPUT_INTENTS_FILE, index=False)
-                    trainer.train([user_input, new_answer])
-                else:
-                    print(f"{botname}>Ok... creo que voy a ignorar lo que dijiste entonces!")
-        else:
-            print(f"{botname}>{response}")
-
-except KeyboardInterrupt:
-    print("\nPrograma finalizado!")
-    sys.exit()
+import vistas.terminal
+vistas.terminal.prompt(persona, recuerdo_botname, chatbot, CUSTOMDATASET, INTENTS_DIR, data, trainer)
 

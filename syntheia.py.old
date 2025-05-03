@@ -1,0 +1,228 @@
+import sys
+from os.path import normpath, expanduser, isfile
+import os
+import logging
+import herramientas.caracteres as hcaract
+
+import pandas as pd
+
+ayuda=f"""
+    ai1 es un chatbot basico que hace uso de chatterbot.
+    SINTAXIS:
+    {sys.argv[0]} [opcion]
+
+
+"""
+
+CUSTOMDATASET=False
+
+logging.getLogger('chatterbot').setLevel(logging.ERROR)
+logging.basicConfig(level=logging.ERROR)
+
+if len(sys.argv)>1:
+    for arg in sys.argv[1:]:
+        if arg == "--logging=info":
+            logging.basicConfig(level=logging.info)
+        if len([a for a in ['--help','--ayuda','-h'] if a == arg]):
+            print(f"{ayuda}")
+            sys.exit()
+        if arg.startswith("--dataset="):
+            if not isfile(normpath(expanduser(arg.lstrip("--dataset=")))):
+                print("No se ha encontrado la ruta al dataset expresado en los argumentos.")
+                sys.exit()
+            if not normpath(expanduser(arg.lstrip("--dataset="))).endswith(".csv") and not normpath(expanduser(arg.lstrip("--dataset="))).endswith(".json"):
+                print("El dataset proveido debe ser .csv o .json")
+
+            CUSTOMDATASET=arg.lstrip("--dataset=")
+
+
+###########################################################################################################
+# MODULOS PARA BIBLIOTECA DE RECUERDOS
+#
+import modelos.recuerdo_modelo as recmodel
+import repositorios.recuerdos as recrepo
+import herramientas.encriptacion as hencript
+###########################################################################################################
+
+
+
+###########################################################################################################
+#
+#                                               LOGIN
+#
+import getpass
+
+login_username=input("Usuario   :")
+login_password=hencript.hashear(getpass.getpass("Clave     :"))
+
+LOGIN_VALIDO=False
+while not LOGIN_VALIDO:
+    recuerdo = recrepo.busca_recuerdo_por_nombre_y_caracteristicas(login_username,["persona"])
+    if not recuerdo:        #guardo el usuario y clave en la bd
+        recuerdo = recmodel.Recuerdo (nombre = login_username,
+                             caracteristicas=["persona"],
+                             contenido={"login_password":login_password, "greeting":f"Hola, {login_username}! es un gusto conocerte! ^_^"})
+        recrepo.agrega_recuerdo(recuerdo)
+
+
+    persona = recrepo.busca_recuerdo_por_nombre_y_caracteristicas(login_username,["persona"])
+    password_bd = persona.busca_contenido("login_password")
+
+    if str(login_password) == str(password_bd):
+        LOGIN_VALIDO=True
+
+    if not LOGIN_VALIDO:
+        print(f"Serás {login_username}? pasame tus datos nuevamente... tal vez te confundiste la clave?")
+        login_username=input("Usuario   :")
+        login_password=hencript.hashear(getpass.getpass("Clave     :"))
+
+
+
+print(persona.busca_contenido("greeting"))
+
+if not recrepo.busca_recuerdo_por_nombre_y_caracteristicas("yo",["ai"]):
+    recuerdo_botname = recmodel.Recuerdo(nombre = "yo",
+                                         caracteristicas=["ai"],
+                                         contenido={"nombre":input(f"No recuerdo mi nombre... cuál es?\n{login_username}>")})
+    recrepo.agrega_recuerdo(recuerdo_botname)
+
+
+persona.actualiza_contenido("greeting", f"Hola, {login_username}! qué bueno volver a verte! ^_^")
+recrepo.actualiza_recuerdo(persona)
+
+recuerdo_botname=recrepo.busca_recuerdo_por_nombre_y_caracteristicas("yo",["ai"])
+botname = recuerdo_botname.busca_contenido("nombre")
+
+
+
+###########################################################################################################
+
+
+
+###########################################################################################################
+#                  DATASET:
+#
+#INTENTS_FILE="datasets/university_dataset.json"
+INTENTS_DIR="datasets"
+DEFAULT_INTENTS_FILE="Conversation.csv"
+INTENTS_FILE=os.path.join(INTENTS_DIR,DEFAULT_INTENTS_FILE)
+
+if CUSTOMDATASET:
+    INTENTS_FILE=CUSTOMDATASET # TODO : CARGA EXCLUSIVA, ASEGURAR
+
+
+INTENTS_FILES=False
+if not persona.busca_contenido("user_intents_files_url"):
+    if not isfile(os.path.join(INTENTS_DIR,persona.nombre+".csv")):
+        with open (os.path.join(INTENTS_DIR,persona.nombre+".csv"),"w") as ar_w:
+            ar_w.writelines(["Unnamed: 0,question,answer"])
+
+    persona.agrega_contenido("user_intents_files_url",[os.path.join(INTENTS_DIR,DEFAULT_INTENTS_FILE),os.path.join(INTENTS_DIR,persona.nombre+".csv")])
+    recrepo.actualiza_recuerdo(persona)
+
+
+
+#
+#
+#
+###########################################################################################################
+
+
+###########################################################################################################
+#
+#                                               ENTRENAMIENTO
+
+from chatterbot import ChatBot
+from chatterbot.trainers import ListTrainer
+from chatterbot.trainers import ChatterBotCorpusTrainer
+
+chatbot = ChatBot(botname, storage_adapter='chatterbot.storage.SQLStorageAdapter') # Crear un nuevo chatbot
+trainer = ListTrainer(chatbot)  # Crear un entrenador
+
+#ENTRENAMOS EL CHATBOT SEGÚN SEA JSON O CSV EL INTENTS:
+
+if CUSTOMDATASET:
+    if CUSTOMDATASET.lower().endswith(".json"):
+        with open(CUSTOMDATASET, 'r', encoding='utf-8') as file:
+            import json
+            intents = json.load(file)
+            for intent in intents['intents']:
+                trainer.train(intent['patterns'])
+                trainer.train(intent['responses'])
+
+    else:
+        if CUSTOMDATASET.lower().endswith(".csv"):
+
+            if os.path.exists(CUSTOMDATASET):
+                data = pd.read_csv(CUSTOMDATASET)
+            else:
+                data = pd.DataFrame(columns=['question', 'answer'])
+
+        i=1
+        for index, row in data.iterrows():
+            question = row['question']
+            answer = row['answer']
+            trainer.train([question, answer]) # Entrenar con la pregunta y la respuesta
+            print(f"[{os.path.split(CUSTOMDATASET)[1]}][{i}/{len(data)}]")
+            i=i+1
+
+else:
+    INTENTS_FILES=persona.busca_contenido("user_intents_files_url")
+    for INTENTS_FILE in INTENTS_FILES:
+        if INTENTS_FILE.lower().endswith(".json"):
+            with open(INTENTS_FILE, 'r', encoding='utf-8') as file:
+                import json
+                intents = json.load(file)
+                for intent in intents['intents']:
+                    trainer.train(intent['patterns'])
+                    trainer.train(intent['responses'])
+
+        else:
+            if INTENTS_FILE.lower().endswith(".csv"):
+                import pandas as pd
+
+                if os.path.exists(INTENTS_FILE):
+                    data = pd.read_csv(INTENTS_FILE)
+                else:
+                    data = pd.DataFrame(columns=['question', 'answer'])
+
+            i=1
+            for index, row in data.iterrows():
+                question = row['question']
+                answer = row['answer']
+                trainer.train([question, answer]) # Entrenar con la pregunta y la respuesta
+                print(f"[{os.path.split(INTENTS_FILE)[1]}][{i}/{len(data)}]")
+                i=i+1
+
+
+
+try: # TODO SEPARAR LA VISTA, CREAR EL CONTROLADOR DE SELECCION Y EL DE EJECUCION DE TAREAS (RESPONDER,BUSCAR DATOS LOCAL, ONLINE ETC...)
+    while True:
+        user_input = input(f"{persona.nombre}>")
+        if user_input.lower() in ["salir", "exit"]:
+            print("<Proceso terminado>")
+            break
+        response = chatbot.get_response(hcaract.quita_acentos(user_input.lower()))
+        if response.confidence < 0.6:
+            print(f"{botname}>Lo siento... no comprendo lo que dijiste...")
+            INPUT_INTENTS_FILE=CUSTOMDATASET
+            if not INPUT_INTENTS_FILE:
+                INPUT_INTENTS_FILE=os.path.join(INTENTS_DIR,persona.nombre+".csv")
+
+            if INPUT_INTENTS_FILE.lower().endswith(".csv"):
+                user_feedback = input(f"{botname}>Te gustaría enseñarme una respuesta adecuada a esa pregunta?\n{persona.nombre}>")
+                if user_feedback.lower() in ['si','bueno','tal vez','capaz','ok','puede ser']:
+                    new_answer = input(f"{botname}>cuál sería una respuesta adecuada?\n{persona.nombre}>")
+                    new_data = pd.DataFrame([[user_input, new_answer]], columns=['question', 'answer'])
+                    data = pd.concat([data, new_data], ignore_index=True)
+                    data.to_csv(INPUT_INTENTS_FILE, index=False)
+                    trainer.train([user_input, new_answer])
+                else:
+                    print(f"{botname}>Ok... creo que voy a ignorar lo que dijiste entonces!")
+        else:
+            print(f"{botname}>{response}")
+
+except KeyboardInterrupt:
+    print("\nPrograma finalizado!")
+    sys.exit()
+
